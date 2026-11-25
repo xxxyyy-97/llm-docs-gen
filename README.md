@@ -6,9 +6,11 @@
 Автоматически определяет язык подсветки кода по расширению файла.
 ## Установка (если в проекте есть uv)
 ```bash
+# Из GitHub
+uv add git+https://github.com/xxxyyy-97/llm-docs-gen
+
+# Для разработки (editable, локально)
 uv add --editable ~/projects/llm-docs-gen
-# Или через PyPI (когда будет опубликован):
-uv add llm-docs-gen
 ```
 
 ## Быстрый старт
@@ -261,4 +263,7 @@ files = generate_all(proj)
 
 for f in files:
     print(f"Generated: {f.resolve()} ({f.stat().st_size} bytes)")
-```    
+```
+
+## Лицензия
+MIT
