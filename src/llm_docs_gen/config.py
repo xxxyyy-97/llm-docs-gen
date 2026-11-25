@@ -67,6 +67,10 @@ class ContentItem(BaseModel):
     # ── НОВОЕ: вид алерта ──
     alert: Literal["NOTE", "TIP", "IMPORTANT", "WARNING", "CAUTION"] = "NOTE"
 
+    # ── НОВОЕ: язык блока вывода команды ──
+    # bash | yaml | sql | json | toml | python | dockerfile | text | ...
+    lang: str = "bash"
+
     @model_validator(mode="after")
     def validate_content_type(self) -> "ContentItem":
         """Проверяет корректность заполнения полей в зависимости от типа."""

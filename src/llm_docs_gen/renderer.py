@@ -10,6 +10,32 @@ from .executor import run
 
 logger = logging.getLogger(__name__)
 
+# Автоопределение языка по расширению файла (если lang не задан явно)
+_EXT_LANG: dict[str, str] = {
+    ".yml": "yaml", ".yaml": "yaml",
+    ".json": "json",
+    ".toml": "toml",
+    ".sql": "sql",
+    ".py": "python",
+    ".sh": "bash",
+    ".env": "bash",
+    ".example": "bash",
+    ".csv": "text",
+    ".md": "markdown",
+}
+
+
+def _detect_lang(args: list[str], default: str = "bash") -> str:
+    """Определяет язык блока по расширению первого файла в аргументах."""
+    for a in args:
+        name = Path(a).name.lower()
+        if name.startswith("dockerfile") or ".dockerfile" in name:
+            return "dockerfile"
+        suffix = Path(name).suffix
+        if suffix in _EXT_LANG:
+            return _EXT_LANG[suffix]
+    return default
+
 
 def _render_markdown_table(headers: list[str], rows: list[list[str]]) -> str:
     """Генерирует стандартную Markdown-таблицу."""
@@ -61,7 +87,6 @@ def render_item(item: DocItem, cfg: ProjectConfig) -> str:
         elif c.type == "alert":
             logger.debug("Rendering alert [%s]", c.alert)
             alert_md = _render_alert(c.alert, c.body or "")
-            # title опционален: есть — заголовок над алертом, нет — только цитата
             if c.title:
                 blocks.append(f"{heading_prefix} {c.title}\n\n{alert_md}")
             else:
@@ -73,7 +98,7 @@ def render_item(item: DocItem, cfg: ProjectConfig) -> str:
                 continue
 
             title_text = c.title or " ".join(c.resolved_args)
-            prompt = f"{shlex.join([c.cmd, *c.resolved_args])}"
+            prompt = shlex.join([c.cmd, *c.resolved_args])
 
             logger.debug("Executing command: %s (level=%d)", prompt, c.title_level)
             try:
@@ -83,7 +108,17 @@ def render_item(item: DocItem, cfg: ProjectConfig) -> str:
                 output = f"ОШИБКА ВЫПОЛНЕНИЯ КОМАНДЫ: {e}"
                 logger.error("Command failed: %s", e)
 
-            blocks.append(f"{heading_prefix} {title_text}\n\n```bash\n{prompt}\n{output.rstrip()}\n```")
+            # Язык вывода: явный lang из YAML, иначе авто по расширению
+            out_lang = c.lang
+            if out_lang == "bash" and c.cmd == "cat":
+                out_lang = _detect_lang(c.resolved_args, default=c.lang)
+
+            # ДВА блока: команда (bash) + вывод (lang)
+            blocks.append(
+                f"{heading_prefix} {title_text}\n\n"
+                f"```bash\n{prompt}\n```\n"
+                f"```{out_lang}\n{output.rstrip()}\n```"
+            )
 
     return "\n\n".join([header, "-"*10, *blocks])
 
