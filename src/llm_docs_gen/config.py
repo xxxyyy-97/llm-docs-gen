@@ -1,3 +1,4 @@
+"""Pydantic-модели для docs.yml."""
 from __future__ import annotations
 from pathlib import Path
 from typing import Any, Literal
@@ -21,30 +22,32 @@ class CmdArg(BaseModel):
 
 class ContentItem(BaseModel):
     """
-    Элемент контента. Может быть командой (command), таблицей (table) или текстом (text).
+    Элемент контента: command | table | text | alert.
 
     Примеры YAML:
-      # Команда (по умолчанию)
+      # Команда
       - cmd: cat
         args: file.txt
 
       # Таблица
       - type: table
-        title: Сервисы
         headers: ["Name", "Port"]
-        rows:
-          - ["pg_dwh", "5432"]
+        rows: [["pg_dwh", "5432"]]
 
       # Текст
       - type: text
-        title: Важное примечание
-        body: |
-          Этот файл генерируется автоматически.
-          Не редактируйте его вручную!
+        title: Примечание
+        body: ...
+
+      # Алерт
+      - type: alert
+        alert: WARNING
+        title: Не редактируйте вручную
+        body: Файл генерируется автоматически.
     """
 
     # ── Поле типа ──
-    type: Literal["command", "table", "text"] = "command"
+    type: Literal["command", "table", "text", "alert"] = "command"
 
     # ── Для команд ──
     cmd: str | None = None
@@ -52,13 +55,17 @@ class ContentItem(BaseModel):
 
     # ── Общие поля ──
     title: str | None = None
+    title_level: int = Field(default=2, ge=1, le=6)
 
     # ── Для таблиц ──
     headers: list[str] | None = None
     rows: list[list[str]] | None = None
 
-    # ── НОВОЕ ПОЛЕ ДЛЯ ТЕКСТА ──
+    # ── Для текста и алертов ──
     body: str | None = None
+
+    # ── НОВОЕ: вид алерта ──
+    alert: Literal["NOTE", "TIP", "IMPORTANT", "WARNING", "CAUTION"] = "NOTE"
 
     @model_validator(mode="after")
     def validate_content_type(self) -> "ContentItem":
@@ -81,9 +88,9 @@ class ContentItem(BaseModel):
                         f"Строка {i} имеет {len(row)} колонок, ожидалось {expected_cols}"
                     )
 
-        elif self.type == "text":
+        elif self.type in ("text", "alert"):
             if self.body is None:
-                raise ValueError("Поле 'body' обязательно для type='text'")
+                raise ValueError(f"Поле 'body' обязательно для type='{self.type}'")
 
         return self
 

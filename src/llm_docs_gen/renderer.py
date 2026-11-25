@@ -27,6 +27,13 @@ def _render_markdown_table(headers: list[str], rows: list[list[str]]) -> str:
     return "\n".join([header_line, sep_line, *data_lines])
 
 
+def _render_alert(kind: str, body: str) -> str:
+    """Генерирует GitHub-style alert: > [!WARNING] + цитата тела."""
+    lines = body.strip().splitlines()
+    quoted = "\n".join(f"> {line}".rstrip() for line in lines)
+    return f"> [!{kind}]\n{quoted}"
+
+
 def render_item(item: DocItem, cfg: ProjectConfig) -> str:
     base = Path(cfg.path).expanduser()
 
@@ -38,32 +45,37 @@ def render_item(item: DocItem, cfg: ProjectConfig) -> str:
     blocks: list[str] = []
 
     for c in item.content:
-        title = c.title or "Блок"
-
-        # ═══════════════════════════════════════════
-        # ВЕТВЛЕНИЕ ПО ТИПУ КОНТЕНТА
-        # ═══════════════════════════════════════════
+        heading_prefix = "#" * c.title_level
 
         if c.type == "table":
-            logger.debug("Rendering table: %s", title)
+            title_text = c.title or "Блок"
+            logger.debug("Rendering table: %s (level=%d)", title_text, c.title_level)
             md_table = _render_markdown_table(c.headers or [], c.rows or [])
-            blocks.append(f"## {title}\n\n{md_table}")
+            blocks.append(f"{heading_prefix} {title_text}\n\n{md_table}")
 
         elif c.type == "text":
-            logger.debug("Rendering text block: %s", title)
-            # Просто вставляем тело текста под заголовком
-            # Используем strip(), чтобы убрать лишние пробелы в начале/конце YAML-строки
-            blocks.append(f"## {title}\n\n{(c.body or '').strip()}")
+            title_text = c.title or "Блок"
+            logger.debug("Rendering text block: %s (level=%d)", title_text, c.title_level)
+            blocks.append(f"{heading_prefix} {title_text}\n\n{(c.body or '').strip()}")
+
+        elif c.type == "alert":
+            logger.debug("Rendering alert [%s]", c.alert)
+            alert_md = _render_alert(c.alert, c.body or "")
+            # title опционален: есть — заголовок над алертом, нет — только цитата
+            if c.title:
+                blocks.append(f"{heading_prefix} {c.title}\n\n{alert_md}")
+            else:
+                blocks.append(alert_md)
 
         elif c.type == "command":
             if not c.cmd:
                 logger.warning("Skipping command block without 'cmd' field")
                 continue
 
-            # source = " ".join(c.resolved_args)
-            prompt = f"➜  projects {shlex.join([c.cmd, *c.resolved_args])}"
+            title_text = c.title or " ".join(c.resolved_args)
+            prompt = f"{shlex.join([c.cmd, *c.resolved_args])}"
 
-            logger.debug("Executing command: %s", prompt)
+            logger.debug("Executing command: %s (level=%d)", prompt, c.title_level)
             try:
                 output = run(c.cmd, c.resolved_args, cwd=base)
                 logger.debug("Command succeeded (%d chars)", len(output))
@@ -71,7 +83,7 @@ def render_item(item: DocItem, cfg: ProjectConfig) -> str:
                 output = f"ОШИБКА ВЫПОЛНЕНИЯ КОМАНДЫ: {e}"
                 logger.error("Command failed: %s", e)
 
-            blocks.append(f"## {title}\n\n```bash\n{prompt}\n{output.rstrip()}\n```")
+            blocks.append(f"{heading_prefix} {title_text}\n\n```bash\n{prompt}\n{output.rstrip()}\n```")
 
     return "\n\n".join([header, "-"*10, *blocks])
 
