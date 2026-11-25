@@ -1,6 +1,6 @@
 # llm-docs-gen
 Генератор markdown-документации для LLM из декларативного docs.yml.
-## Установка
+## Установка (если в проекте есть uv)
 ```bash
 uv add --editable ~/projects/llm-docs-gen
 # Или через PyPI (когда будет опубликован):
@@ -43,7 +43,12 @@ project:
 ```
 2. Запустите генератор:
 ```bash
+cd ~/projects/llm-docs-gen
+# генерация документации в текущем проекте
 uv run llm-docs-gen --config docs/docs.yml
+
+# генерация документации в другом проекте
+uv run llm-docs-gen --config ~/projects/pg-cdc/docs/docs.yml
 ```
 Результат — файлы docs/PROJECT_TREE.md и docs/CONFIGURATION.md, готовые к скармливанию LLM.
 ## Формат docs.yml
