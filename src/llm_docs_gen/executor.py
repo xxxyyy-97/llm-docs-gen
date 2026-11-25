@@ -52,4 +52,8 @@ def run(cmd: str, args: list[str], cwd: str | Path) -> str:
 
     if r.returncode != 0:
         raise RuntimeError(f"[{line}] → {r.stderr.strip()}")
-    return r.stdout
+    output = r.stdout
+    # Замена NBSP (U+00A0) на обычный пробел (U+0020)
+    # Также можно заменить другие редкие whitespace, если нужно
+    output = output.replace('\u00a0', ' ')
+    return output
