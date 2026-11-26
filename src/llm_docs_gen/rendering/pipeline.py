@@ -1,65 +1,12 @@
-"""Генерация .md файла из DocItem."""
-from __future__ import annotations
-
 import logging
 import shlex
 from pathlib import Path
-
-from .config import DocItem, ProjectConfig
-from .executor import run
+from ..models import DocItem, ProjectConfig # , ContentItem
+from ..execution import run
+from .language import detect_lang
+from .blocks import render_markdown_table, render_alert #, render_command_block
 
 logger = logging.getLogger(__name__)
-
-# Автоопределение языка по расширению файла (если lang не задан явно)
-_EXT_LANG: dict[str, str] = {
-    ".yml": "yaml", ".yaml": "yaml",
-    ".json": "json",
-    ".toml": "toml",
-    ".sql": "sql",
-    ".py": "python",
-    ".sh": "bash",
-    ".env": "bash",
-    ".example": "bash",
-    ".csv": "text",
-    ".md": "markdown",
-}
-
-
-def _detect_lang(args: list[str], default: str = "bash") -> str:
-    """Определяет язык блока по расширению первого файла в аргументах."""
-    for a in args:
-        name = Path(a).name.lower()
-        if name.startswith("dockerfile") or ".dockerfile" in name:
-            return "dockerfile"
-        suffix = Path(name).suffix
-        if suffix in _EXT_LANG:
-            return _EXT_LANG[suffix]
-    return default
-
-
-def _render_markdown_table(headers: list[str], rows: list[list[str]]) -> str:
-    """Генерирует стандартную Markdown-таблицу."""
-    if not headers:
-        return ""
-
-    header_line = "| " + " | ".join(headers) + " |"
-    sep_line = "| " + " | ".join(["---"] * len(headers)) + " |"
-
-    data_lines = []
-    for row in rows:
-        safe_row = row[:len(headers)] + [""] * max(0, len(headers) - len(row))
-        data_lines.append("| " + " | ".join(safe_row) + " |")
-
-    return "\n".join([header_line, sep_line, *data_lines])
-
-
-def _render_alert(kind: str, body: str) -> str:
-    """Генерирует GitHub-style alert: > [!WARNING] + цитата тела."""
-    lines = body.strip().splitlines()
-    quoted = "\n".join(f"> {line}".rstrip() for line in lines)
-    return f"> [!{kind}]\n{quoted}"
-
-
 def render_item(item: DocItem, cfg: ProjectConfig) -> str:
     base = Path(cfg.path).expanduser()
 
@@ -76,7 +23,7 @@ def render_item(item: DocItem, cfg: ProjectConfig) -> str:
         if c.type == "table":
             title_text = c.title or "Блок"
             logger.debug("Rendering table: %s (level=%d)", title_text, c.title_level)
-            md_table = _render_markdown_table(c.headers or [], c.rows or [])
+            md_table = render_markdown_table(c.headers or [], c.rows or [])
             blocks.append(f"{heading_prefix} {title_text}\n\n{md_table}")
 
         elif c.type == "text":
@@ -86,7 +33,7 @@ def render_item(item: DocItem, cfg: ProjectConfig) -> str:
 
         elif c.type == "alert":
             logger.debug("Rendering alert [%s]", c.alert)
-            alert_md = _render_alert(c.alert, c.body or "")
+            alert_md = render_alert(c.alert, c.body or "")
             if c.title:
                 blocks.append(f"{heading_prefix} {c.title}\n\n{alert_md}")
             else:
@@ -111,7 +58,7 @@ def render_item(item: DocItem, cfg: ProjectConfig) -> str:
             # Язык вывода: явный lang из YAML, иначе авто по расширению
             out_lang = c.lang
             if out_lang == "bash" and c.cmd == "cat":
-                out_lang = _detect_lang(c.resolved_args, default=c.lang)
+                out_lang = detect_lang(c.resolved_args, default=c.lang)
 
             # ДВА блока: команда (bash) + вывод (lang)
             blocks.append(

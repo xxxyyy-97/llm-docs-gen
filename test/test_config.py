@@ -3,14 +3,8 @@ import re
 import pytest
 from pathlib import Path
 
-from llm_docs_gen.config import (
-    CmdArg,
-    ContentItem,
-    DocItem,
-    DocsConfig,
-    ProjectConfig,
-)
-from llm_docs_gen.renderer import render_item
+from llm_docs_gen.models import CmdArg, ContentItem, DocItem, DocsConfig, ProjectConfig
+from llm_docs_gen.rendering import render_item
 
 def test_render_item_format(tmp_path: Path):
     (tmp_path / "a.yml").write_text("key: value\n")
@@ -148,7 +142,7 @@ class TestDocItem:
             DocItem(item="b", render=99, file="B.md"),
             DocItem(item="a", render=10, file="A.md"),
         ]
-        from llm_docs_gen.config import ProjectConfig
+        # from llm_docs_gen.config import ProjectConfig
         proj = ProjectConfig(title="t", path="/tmp", docs="docs", items=items)
         sorted_items = proj.sorted_items
         assert sorted_items[0].item == "a"
@@ -158,7 +152,7 @@ class TestDocItem:
 class TestTildeExpansion:
     def test_path_expanduser(self):
         """path: ~/projects/dbt → /home/user/projects/dbt"""
-        from pathlib import Path
+        # from pathlib import Path
         raw = "~/projects/dbt"
         expanded = Path(raw).expanduser()
         assert "~" not in str(expanded)   

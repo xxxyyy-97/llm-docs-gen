@@ -1,24 +1,6 @@
-"""Pydantic-модели для docs.yml."""
-from __future__ import annotations
-from pathlib import Path
-from typing import Any, Literal
-
 from pydantic import BaseModel, Field, model_validator
-from ruamel.yaml import YAML
-
-
-class CmdArg(BaseModel):
-    """Аргумент команды: либо {'flag': 'a'}, либо {'value': '...'}.
-    В YAML встречается и строка напрямую."""
-    flag: str | None = None
-    value: str | None = None
-
-    @classmethod
-    def parse(cls, raw: Any) -> "CmdArg":
-        if isinstance(raw, str):
-            return cls(value=raw)
-        return cls(**raw)
-
+from typing import Any, Literal
+from .base import CmdArg
 
 class ContentItem(BaseModel):
     """
@@ -114,33 +96,3 @@ class ContentItem(BaseModel):
                 out.append(arg.value)
         return out
 
-
-class DocItem(BaseModel):
-    item: str
-    render: int
-    file: str
-    description: str | None = None
-    content: list[ContentItem] = []
-
-
-class DocsConfig(BaseModel):
-    version: str | None = None
-    project: dict[str, Any] | None = None
-
-    @classmethod
-    def load(cls, path: Path | str) -> "DocsConfig":
-        yaml = YAML()
-        with open(path) as f:
-            data = yaml.load(f)
-        return cls(**data)
-
-
-class ProjectConfig(BaseModel):
-    title: str
-    path: str
-    docs: str
-    items: list[DocItem] = Field(default_factory=list)
-
-    @property
-    def sorted_items(self) -> list[DocItem]:
-        return sorted(self.items, key=lambda i: i.render)

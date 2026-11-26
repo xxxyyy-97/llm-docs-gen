@@ -7,8 +7,8 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
-from .config import DocsConfig, ProjectConfig
-from .renderer import generate_all
+from .models import DocsConfig, ProjectConfig
+from .rendering import generate_all
 
 app = typer.Typer()
 console = Console()
