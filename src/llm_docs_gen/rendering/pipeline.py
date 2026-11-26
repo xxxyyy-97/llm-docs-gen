@@ -3,14 +3,84 @@ from __future__ import annotations
 
 import logging
 import shlex
+from datetime import datetime
 from pathlib import Path
 
-from ..models import DocItem, ProjectConfig
+from ..models import DocItem, ProjectConfig, ReadmeConfig
 from ..execution import run
 from .language import detect_lang
 from .blocks import render_markdown_table, render_alert
 
 logger = logging.getLogger(__name__)
+
+def generate_readme(cfg: ProjectConfig, rc: ReadmeConfig) -> str:
+    """Генерирует содержимое docs/README.md на основе конфигурации проекта."""
+    
+    lines: list[str] = []
+    
+    # 1. Заголовок
+    if rc.title:
+        lines.append(f"# {rc.title}")
+    else:
+        lines.append(f"# Документация проекта {cfg.title}")
+        
+    lines.append("")
+    
+    # 2. Warning alert (если задан)
+    if rc.warning:
+        alert_body = rc.warning.strip()
+        # Добавляем инструкцию по регенерации
+        instruction = (
+            f"\n> Чтобы обновить документацию, измените исходные файлы или `docs.yml`, "
+            f"затем запустите:\n>\n> ```bash\n> uv run llm-docs-gen --config {cfg.docs}/docs.yml\n> ```"
+        )
+        full_warning = alert_body + instruction
+        lines.append(render_alert("CAUTION", full_warning))
+        lines.append("")
+        
+    # 3. Intro text
+    if rc.intro:
+        lines.append(rc.intro.strip())
+        lines.append("")
+        
+    # 4. Table of Contents
+    lines.append("## Содержание")
+    lines.append("")
+    
+    headers_map = {
+        "file": "Файл",
+        "description": "Описание",
+        "order": "Порядок"
+    }
+    
+    selected_cols = rc.columns or ["file", "description"]
+    table_headers = [headers_map.get(c, c.capitalize()) for c in selected_cols]
+    
+    table_rows = []
+    for item in cfg.sorted_items:
+        row_data = []
+        for col in selected_cols:
+            if col == "file":
+                row_data.append(f"[{item.file}](./{item.file})")
+            elif col == "description":
+                desc = (item.description or "").strip().replace("\n", " ")
+                # Обрезаем длинные описания для таблицы
+                if len(desc) > 100:
+                    desc = desc[:97] + "..."
+                row_data.append(desc)
+            elif col == "order":
+                row_data.append(str(item.render))
+        table_rows.append(row_data)
+        
+    md_table = render_markdown_table(table_headers, table_rows)
+    lines.append(md_table)
+    
+    # 5. Footer timestamp
+    lines.append("")
+    lines.append("---")
+    lines.append(f"*Последняя генерация: {datetime.now().strftime('%Y-%m-%d %H:%M')}*")
+    
+    return "\n".join(lines)
 
 
 def render_item(item: DocItem, cfg: ProjectConfig) -> str:
@@ -103,5 +173,13 @@ def generate_all(cfg: ProjectConfig) -> list[Path]:
         target = out_dir / item.file
         target.write_text(content, encoding="utf-8")
         created.append(target)
+
+    # ГЕНЕРАЦИЯ README.MD (если настроено)
+    if cfg.readme:
+        logger.info("Generating index file: README.md")
+        readme_content = generate_readme(cfg, cfg.readme)
+        readme_path = out_dir / "README.md"
+        readme_path.write_text(readme_content, encoding="utf-8")
+        created.append(readme_path)
 
     return created
