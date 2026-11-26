@@ -1,12 +1,18 @@
+"""Оркестрация генерации Markdown."""
+from __future__ import annotations
+
 import logging
 import shlex
 from pathlib import Path
-from ..models import DocItem, ProjectConfig # , ContentItem
+
+from ..models import DocItem, ProjectConfig
 from ..execution import run
 from .language import detect_lang
-from .blocks import render_markdown_table, render_alert #, render_command_block
+from .blocks import render_markdown_table, render_alert
 
 logger = logging.getLogger(__name__)
+
+
 def render_item(item: DocItem, cfg: ProjectConfig) -> str:
     base = Path(cfg.path).expanduser()
 
@@ -21,19 +27,33 @@ def render_item(item: DocItem, cfg: ProjectConfig) -> str:
         heading_prefix = "#" * c.title_level
 
         if c.type == "table":
-            title_text = c.title or "Блок"
+            # Для таблиц title обязателен или берётся из headers[0] как fallback
+            title_text = c.title or (c.headers[0] if c.headers else None)
             logger.debug("Rendering table: %s (level=%d)", title_text, c.title_level)
             md_table = render_markdown_table(c.headers or [], c.rows or [])
-            blocks.append(f"{heading_prefix} {title_text}\n\n{md_table}")
+            
+            if title_text:
+                blocks.append(f"{heading_prefix} {title_text}\n\n{md_table}")
+            else:
+                # Если нет ни title, ни headers — просто таблица без подписи
+                blocks.append(md_table)
 
         elif c.type == "text":
-            title_text = c.title or "Блок"
-            logger.debug("Rendering text block: %s (level=%d)", title_text, c.title_level)
-            blocks.append(f"{heading_prefix} {title_text}\n\n{(c.body or '').strip()}")
+            body_clean = (c.body or "").strip()
+            
+            if c.title:
+                # Есть заголовок → используем его и level
+                logger.debug("Rendering text block with title: %s (level=%d)", c.title, c.title_level)
+                blocks.append(f"{heading_prefix} {c.title}\n\n{body_clean}")
+            else:
+                # Нет заголовка → чистый текст, никаких ## / ###
+                logger.debug("Rendering plain text block (%d chars)", len(body_clean))
+                blocks.append(body_clean)
 
         elif c.type == "alert":
             logger.debug("Rendering alert [%s]", c.alert)
             alert_md = render_alert(c.alert, c.body or "")
+            
             if c.title:
                 blocks.append(f"{heading_prefix} {c.title}\n\n{alert_md}")
             else:
@@ -44,7 +64,8 @@ def render_item(item: DocItem, cfg: ProjectConfig) -> str:
                 logger.warning("Skipping command block without 'cmd' field")
                 continue
 
-            title_text = c.title or " ".join(c.resolved_args)
+            # Команда всегда имеет заголовок: явный title или сама команда как fallback
+            title_text = c.title or shlex.join([c.cmd, *c.resolved_args])
             prompt = shlex.join([c.cmd, *c.resolved_args])
 
             logger.debug("Executing command: %s (level=%d)", prompt, c.title_level)

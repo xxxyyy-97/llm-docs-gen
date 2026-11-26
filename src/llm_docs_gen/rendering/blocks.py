@@ -1,3 +1,6 @@
+import logging
+logger = logging.getLogger(__name__)
+
 def render_markdown_table(headers: list[str], rows: list[list[str]]) -> str:
     """Генерирует стандартную Markdown-таблицу."""
     if not headers:
@@ -16,6 +19,7 @@ def render_markdown_table(headers: list[str], rows: list[list[str]]) -> str:
 
 def render_alert(kind: str, body: str) -> str:
     """Генерирует GitHub-style alert: > [!WARNING] + цитата тела."""
+    logger.debug("Building alert fragment [%s], %d lines", kind, len(body.splitlines()))
     lines = body.strip().splitlines()
     quoted = "\n".join(f"> {line}".rstrip() for line in lines)
     return f"> [!{kind}]\n{quoted}"
